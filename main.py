@@ -8,6 +8,8 @@ the code will explain what I did to make this work, and my thought process.
 # off when why created the account.
 # each ID is stored with information that the class of Library has access to.
 import random
+from datetime import date
+
 
 # library class acts as a server class
 class Library:
@@ -76,9 +78,9 @@ class Library:
         book = Book(name, author, booknum, category)
         self.listBookClass.append(book)
 
-    def requestBookInformation(self):
-        # this is not functional yet, but I explain what it does later
-        return 0
+    def requestBookInformation(self, bookname):
+        pass
+        # see if book exists, find book class, send book information back to the user
 
     def userTakeoutBook(self, userInformation, bookInformation):
         '''
@@ -108,25 +110,37 @@ class Library:
         send that information to the user through an email (which will be in a seperate file so that the email information
         and source code are not clogged with the same information, and also so that they can only talk one-way.
         '''
-        if bookInformation['status'][1] == False:
-            print("everything works correctly so far")
-            #choice = input("Book Not Available, would you like to put book on hold? [Y/N]: ")
-        # i have commented the majority of this out because it is not valid syntax (before I used lists, and I switched to
-        # dictionaries because they make more se
-#            if choice.upper() == 'Y':
-#                self.putBookOnHold(userInformation, bookInformation)
-#        if bookInformation[4] == True:
-#            if userInformation[2] == True:
-#                print("YOU HAVE TOO MANY BOOKS OVERDUE -- PLEASE RENEW OR RETURN THEM, THEN TAKE OUT BOOK AGAIN")
-#            if userInformation[2] == False:
+        # make sure book is available and that user has no overdue books
+        if bookInformation['status'][0] == False or bookInformation['status'][1] == True:
+            self.globalPrint(f"book available == {bookInformation['status'][0]}, book on hold == {bookInformation['status'][1]}", self.name, self.name)
+        if bookInformation['status'][0] == True and bookInformation['status'][1] == False and userInformation['status'][0] == False:
+            self.globalPrint("updating information...", self.name, self.name)
+            bookInformation['status'][0] = False
+            bookInformation['history'].append(userInformation['identification'])
+            userInformation['history'].append(bookInformation['identification'])
+            todaysDate = date.today()
+            bookInformation['historyTime'].append(todaysDate)
+            userInformation['historyTime'].append(todaysDate)
+            # at this point all information is updated, now that information has to be sent out.
+            self.updateInformation(userInformation, bookInformation)
+
+    def globalPrint(self, information, name, ID):
+        print(f"{name}-{ID}: {information}")
 
     def putBookOnHold(self, userInformation, bookInformation):
         pass
-    # when the book is placed on hold this is the final stage
+        # when the book is placed on hold this is the final stage
 
     def updateInformation(self, userInformation, bookInformation):
-        pass
-    # this part of the function will inform both the book and the user that its information has changed
+        self.globalPrint("sending information...", self.name, self.name)
+        if user.updateInformation(userInformation, userInformation['identification']) == 'confirm':
+            self.globalPrint("information for user has been updated successfully", self.name, self.name)
+            if book.updateInformation(bookInformation, bookInformation['identification']) == 'confirm':
+                self.globalPrint("information for book has been updated successfully", self.name, self.name)
+            else:
+                return 'something went wrong. Information on book failed to update'
+        else:
+            return 'something went wrong. information on user failed to update'
 
 library = Library('test library')
 
@@ -151,27 +165,32 @@ class User:
                                 'history': self.history,
                                 'historyTime': self.historyTime,
                                 'listWaitingOnHold': self.listWaitingOnHold,
-                                'Identification': self.ID}
+                                'identification': self.ID,
+                                'listOverdueBooks': self.listOverdueBooks}
 
-    def updateInformation(self):
-        self.userInformation = {'email': self.email,
-                                'name': self.name,
-                                'status': self.status,
-                                'history': self.history,
-                                'historyTime': self.historyTime,
-                                'listWaitingOnHold': self.listWaitingOnHold,
-                                'Identification': self.ID}
+    def updateInformation(self, information, ID):
+        if ID == self.ID:
+            self.userInformation = information
+            return 'confirm'
+        else:
+            pass
 
-    def requestBookInformation(self):
+    def requestBookInformation(self, bookname):
         # this is to ask the server for book information upon take out of the book.
-        return library.requestBookInformation()
+        return library.requestBookInformation(bookname)
 
-    def takeOutBook(self):
+    def takeOutBook(self, bookInformation):
         # this is the function the class will use to contact the server for takeout of book
         # temporaryBookInformation = self.requestBookInformation()
-        library.userTakeoutBook(self.userInformation, book.bookInformation)
+        feedback = library.userTakeoutBook(self.userInformation, bookInformation)
+        if feedback == 'something went wrong on book side':
+            library.globalPrint("something went wrong on book side", self.name, self.ID)
+        elif feedback == 'something went on user side':
+            library.globalPrint("something went wrong on user side", self.name, self.ID)
+        else:
+            library.globalPrint("information has successfully been updated on all sides", self.name, self.ID)
 
-user = User('bob', 'urmom@gmail.com')
+user = User('Bob Jeffry', 'bobjeffry1@gmail.com')
 
 class Book:
     def __init__(self, name, author, booknum, category):
@@ -190,24 +209,21 @@ class Book:
         self.bookInformation = {'name': self.name,
                                 'author': self.author,
                                 'booknum': self.booknum,
-                                'Status': self.status,
-                                'history': self.history,
-                                'historyTime': self.historyTime,
-                                'Identification': self.ID}
-
-    def updateInformation(self):
-        # update information of the book in case something has changed
-        self.bookInformation = {'name': self.name,
-                                'author': self.author,
-                                'booknum': self.booknum,
                                 'status': self.status,
                                 'history': self.history,
                                 'historyTime': self.historyTime,
-                                'Identification': self.ID}
+                                'identification': self.ID}
+
+    def updateInformation(self, information, ID):
+        # update information of the book in case something has changed
+        if ID == self.ID:
+            self.bookInformation = information
+            return 'confirm'
+
 
 # this code is just to run tests on the newest additions to the code
-book = Book('bob', 'bob', 1, ['romance'])
-book.available = False
-book.updateInformation()
+book = Book("We Didn't Start the Fire", 'Billy Joel', 1, ['action'])
+book = Book("They Don't Really Care About Us", 'Michael Jackson', 1, ['action'])
 
 user.takeOutBook()
+
