@@ -1,7 +1,7 @@
-'''
-This project is a project to make a library management system. This commented area of
-the code will explain what I did to make this work, and my thought process.
-'''
+# sign in system has been introduced, though primitive. it is capable of saving information regarding the user and the
+# book so that means that we can actually save information instead of having to rewrite it everytime.
+# next we will add logic for adding to hold list, count down until it is overdue, as well as contacting user and admin
+# through email address
 
 # imports
 # random import generates the IDs at random, so that you cannot use a malware program to predict a users ID number based
@@ -9,6 +9,7 @@ the code will explain what I did to make this work, and my thought process.
 # each ID is stored with information that the class of Library has access to.
 import random
 from datetime import date
+# import tkinter as tk
 
 
 # library class acts as a server class
@@ -24,6 +25,49 @@ class Library:
         # these lists are the same thing, but instead are storing the exact class name rather than just the ID
         self.listUserClass = []
         self.listBookClass = []
+
+    def loadInformationLongTerm(self):
+        self.globalPrint("load information request recieved", self.name, self.name)
+        loadFile = open("saveUserClass.txt", "r")
+        self.listUserClass = loadFile.read()
+        loadFile.close()
+        self.globalPrint("loaded user class list", self.name, self.name)
+        loadFile = open("saveBookClass.txt", "r")
+        self.listBookClass = loadFile.read()
+        loadFile.close()
+        self.globalPrint("loaded book class list", self.name, self.name)
+        loadFile = open("saveUserID.txt", "r")
+        self.listUserID = loadFile.read()
+        loadFile.close()
+        self.globalPrint("loaded user ID list", self.name, self.name)
+        loadFile = open("saveBookID.txt", "r")
+        self.listBookID = loadFile.read()
+        loadFile.close()
+        self.globalPrint("loaded book ID list", self.name, self.name)
+
+
+    def saveInformationLongTerm(self):
+        userClass = self.listUserClass
+        bookClass = self.listBookClass
+
+        userID = self.listUserID
+        bookID = self.listBookID
+
+        saveFile = open("saveUserClass.txt", "w")
+        saveFile.write(str(userClass))
+        saveFile.close()
+
+        saveFile = open("saveBookClass.txt", "w")
+        saveFile.write(str(bookClass))
+        saveFile.close()
+
+        saveFile = open("saveUserID.txt", "w")
+        saveFile.write(str(userID))
+        saveFile.close()
+
+        saveFile = open("saveBookID.txt", "w")
+        saveFile.write(str(bookID))
+        saveFile.close()
 
     def generateUserID(self):
         # this program is dealt with in the server so that a user is not able to choose his/her own ID, or so that one
@@ -57,8 +101,12 @@ class Library:
         # this adds the user and makes a class for the user given the parameters
         name = input("Full Name: ")
         email = input("Enter Email Address: ")
-        user = User(name, email)
-        self.listUserClass.append(user)
+        password = input("Enter Password: ")
+        confirmPassword = input("Re-Enter Password: ")
+        if password == confirmPassword:
+            user = User(name, email, password)
+            print(user.ID)
+            self.listUserClass.append(user)
 
     def addBook(self):
         # this adds the book and makes a class for the book given the parameters. It takes more parameters than a user
@@ -77,10 +125,30 @@ class Library:
 
         book = Book(name, author, booknum, category)
         self.listBookClass.append(book)
+        print(book.ID)
 
-    def requestBookInformation(self, bookname):
-        pass
-        # see if book exists, find book class, send book information back to the user
+    def requestUserInformation(self, userID, userName):
+        doesExist = self.listUserID.count(userID)
+        if doesExist > 0:
+            for i in range(len(self.listUserClass)):
+                if self.listUserClass[i].ID == userID and self.listUserClass[i].name == userName and self.listUserClass[i].signIn:
+                    return self.listUserClass[i].userInformation
+                if self.listUserClass[i].ID == userID and self.listUserClass[i].name == userName and not self.listUserClass[i].signIn:
+                    self.globalPrint("USER NOT PROPERLY SIGNED IN - library.requestUserInformation cannot return information", self.name, self.name)
+                    return None
+            else:
+                self.globalPrint("User ID Not Found", self.name, self.name)
+
+    def requestBookInformation(self, bookID):
+        # check if book exists, if book exists, then find information of the book, and return bookInformation
+        doesExist = self.listBookID.count(bookID)
+        if doesExist > 0:
+            for i in range(len(self.listBookClass)):
+                if self.listBookClass[i].ID == bookID:
+                    return self.listBookClass[i].bookInformation
+        else:
+            self.globalPrint("Book Not Found", self.name, self.name)
+            return 'Book Not Found'
 
     def userTakeoutBook(self, userInformation, bookInformation):
         '''
@@ -121,6 +189,8 @@ class Library:
             todaysDate = date.today()
             bookInformation['historyTime'].append(todaysDate)
             userInformation['historyTime'].append(todaysDate)
+            userInformation['status'][3] = True
+            userInformation['booksSignedOut'].append(bookInformation['identification'])
             # at this point all information is updated, now that information has to be sent out.
             self.updateInformation(userInformation, bookInformation)
 
@@ -133,31 +203,80 @@ class Library:
 
     def updateInformation(self, userInformation, bookInformation):
         self.globalPrint("sending information...", self.name, self.name)
-        if user.updateInformation(userInformation, userInformation['identification']) == 'confirm':
-            self.globalPrint("information for user has been updated successfully", self.name, self.name)
-            if book.updateInformation(bookInformation, bookInformation['identification']) == 'confirm':
-                self.globalPrint("information for book has been updated successfully", self.name, self.name)
+        for i in range(len(self.listUserClass)):
+            self.listUserClass[i].updateInformation(userInformation, userInformation['identification'])
+        for i in range(len(self.listBookClass)):
+            self.listBookClass[i].updateInformation(bookInformation, bookInformation['identification'])
+
+    def signInUser(self, ID, password):
+        for i in range(len(self.listUserClass)):
+            if self.listUserClass[i].ID == ID:
+                break
             else:
-                return 'something went wrong. Information on book failed to update'
-        else:
-            return 'something went wrong. information on user failed to update'
+                continue
+        for i in range(len(self.listUserClass)):
+            status = self.listUserClass[i].requestSignIn(password)
+            if status == True:
+                self.globalPrint('SIGN IN CONFIRMED ON SERVER SIDE', self.name, self.name)
+                signInformation = [ID, self.listUserClass[i].name]
+                return signInformation
+            else:
+                print("YOU HAVE ENTERED AN INCORRECT PASSWORD")
+                break
+
+    def signInInput(self):
+        IDnumber = input("Enter ID: ")
+        try:
+            IDnumber = int(IDnumber)
+        except:
+            pass
+
+        validateID = self.listUserID.count(IDnumber)
+        if validateID > 0:
+            password = input("Please Enter Password: ")
+            signInformation = self.signInUser(IDnumber, password)
+            return signInformation
+
+    def deleteUser(self, ID):
+        for i in range(len(self.listUserClass)):
+            if self.listUserClass[i].ID == ID:
+                del self.listUserClass[i]
+                self.listUserID.remove(ID)
+                print("USER HAS BEEN SUCCESSFULLY DELETED YOU WILL NOW RETURN TO MAIN SCREEN")
+                break
+            continue
+
+    def deleteBook(self, ID):
+        for i in range(len(self.listBookClass)):
+            if self.listBookClass[i].ID == ID:
+                del self.listBookClass[i]
+                self.listBookID.remove(ID)
+                print("BOOK HAS BEEN SUCCESSFULLY DELETED YOU WILL NOW RETURN TO MAIN SCREEN")
+                break
+
 
 library = Library('test library')
 
 
+# class for User
 class User:
-    def __init__(self, name, email):
+    def __init__(self, name, email, password):
+        print("new user added")
         # init function for user
         self.email = email
         self.name = name
+        self.password = password
+        self.signIn = False
         self.overdueBooks = False
+        self.booksSignedOut = False
+        self.listBooksSignedOut = []
         self.listOverdueBooks = []
         self.history = []
         self.historyTime = []
         self.waitingOnHold = False
         self.listWaitingOnHold = []
         self.ID = library.generateUserID()
-        self.status = [self.overdueBooks, self.waitingOnHold]
+        self.status = [self.overdueBooks, self.waitingOnHold, self.signIn, self.booksSignedOut]
         # dictionary for information
         self.userInformation = {'email': self.email,
                                 'name': self.name,
@@ -165,36 +284,41 @@ class User:
                                 'history': self.history,
                                 'historyTime': self.historyTime,
                                 'listWaitingOnHold': self.listWaitingOnHold,
+                                'booksSignedOut': self.listBooksSignedOut,
                                 'identification': self.ID,
                                 'listOverdueBooks': self.listOverdueBooks}
 
     def updateInformation(self, information, ID):
         if ID == self.ID:
             self.userInformation = information
-            return 'confirm'
-        else:
-            pass
+            library.globalPrint('information has been updated successfully on user side', self.name, self.ID)
 
-    def requestBookInformation(self, bookname):
+    def requestBookInformation(self, bookID):
         # this is to ask the server for book information upon take out of the book.
-        return library.requestBookInformation(bookname)
+        bookInformation = library.requestBookInformation(bookID)
+        if bookInformation == 'Book Not Found':
+            library.globalPrint("REQUEST FAILED", self.name, self.ID)
+        else:
+            return bookInformation
 
     def takeOutBook(self, bookInformation):
         # this is the function the class will use to contact the server for takeout of book
         # temporaryBookInformation = self.requestBookInformation()
-        feedback = library.userTakeoutBook(self.userInformation, bookInformation)
-        if feedback == 'something went wrong on book side':
-            library.globalPrint("something went wrong on book side", self.name, self.ID)
-        elif feedback == 'something went on user side':
-            library.globalPrint("something went wrong on user side", self.name, self.ID)
-        else:
-            library.globalPrint("information has successfully been updated on all sides", self.name, self.ID)
+        if self.signIn == True:
+            library.userTakeoutBook(self.userInformation, bookInformation)
 
-user = User('Bob Jeffry', 'bobjeffry1@gmail.com')
+    def requestSignIn(self, password):
+        if password == self.password:
+            self.signIn = True
+            library.globalPrint("sign in confirmed on user side", self.name, self.ID)
+            return True
 
+
+# class for Book
 class Book:
     def __init__(self, name, author, booknum, category):
         # init function for book
+        print("new book has been created")
         self.name = name
         self.author = author
         self.booknum = booknum
@@ -218,12 +342,15 @@ class Book:
         # update information of the book in case something has changed
         if ID == self.ID:
             self.bookInformation = information
-            return 'confirm'
+            library.globalPrint('information has successfully been updated on book side', self.name, self.ID)
 
 
-# this code is just to run tests on the newest additions to the code
-book = Book("We Didn't Start the Fire", 'Billy Joel', 1, ['action'])
-book = Book("They Don't Really Care About Us", 'Michael Jackson', 1, ['action'])
+try:
+    library.loadInformationLongTerm()
+    library.globalPrint("files loaded on systemLog side", 1, "systemLog")
+except:
+    library.globalPrint("files not found -- continuing anyways", 1, "systemLog")
 
-user.takeOutBook()
 
+# this code must be at end of file no matter what, it is server saving all information before program closes
+library.saveInformationLongTerm()
