@@ -24,7 +24,8 @@ import smtplib
 import bcrypt
 import socket
 import threading
-import sys
+
+
 
 # constant variables
 # protocol message header will be 64 bytes
@@ -61,10 +62,23 @@ def handleClient(conn, addr):
             # a given class
             if msg == DISCONNECT_MESSAGE:
                 connected = False
+                print("A USER HAS DISCONNECTED")
                 # this comment is so that pycharm will let me collapse the if statement
                 # because if I want to collapse the if statement I need at least 2 lines
+            if msg == 'requestLibraryName':
+                def requestLibraryName():
+                    print("requestLibraryName")
+                    name = library.name
+                    name = name.encode('utf-8')
+                    msgLength = len(name)
+                    sendLength = str(msgLength).encode('utf-8')
+                    sendLength += b' ' * (HEADER - len(sendLength))
+                    conn.send(sendLength)
+                    conn.send(name)
+                requestLibraryName()
             if msg == 'requestSignIn':
                 def clientRequestSignIn():
+                    print("clientRequestSignIn")
                     userID = None
                     msgLength = conn.recv(HEADER).decode('utf-8')
                     if msgLength:
@@ -74,10 +88,19 @@ def handleClient(conn, addr):
                     if msgLength:
                         msgLength = int(msgLength)
                         password = conn.recv(msgLength).decode('utf-8')
-                        library.signInUser(userID, password)
+                        signedIn = library.signInUser(userID, password)
+                        # let UI know that sign in has been confirmed or rejected
+                        confirm = str(signedIn).encode('utf-8')
+                        msgLength = len(confirm)
+                        sendLength = str(msgLength).encode('utf-8')
+                        sendLength += b' ' * (HEADER - len(sendLength))
+                        conn.send(sendLength)
+                        conn.send(confirm)
+
                 clientRequestSignIn()
             if msg == 'requestSignOut':
                 def clientRequestSignOut():
+                    print("clientRequestSignOut")
                     msgLength = conn.recv(HEADER).decode('utf-8')
                     if msgLength:
                         msgLength = int(msgLength)
@@ -86,6 +109,7 @@ def handleClient(conn, addr):
                 clientRequestSignOut()
             if msg == 'requestDeleteUser':
                 def clientRequestDeleteUser():
+                    print("clientRequestDeleteUser")
                     userID = None
                     msgLength = conn.recv(HEADER).decode('utf-8')
                     if msgLength:
@@ -99,21 +123,33 @@ def handleClient(conn, addr):
                 clientRequestDeleteUser()
             if msg == 'requestUserInformation':
                 def clientRequestUserInformation():
+                    print("clientRequestUserInformation")
                     msgLength = conn.recv(HEADER).decode('utf-8')
                     if msgLength:
                         msgLength = int(msgLength)
                         userID = conn.recv(msgLength).decode('utf-8')
                         userInformation = library.requestUserInformation(userID)
-                        userInformation = pickle.dumps(userInformation)
-                        msgRlength = len(userInformation)
-                        sendRlength = str(msgRlength).encode('utf-8')
-                        sendRlength += b' ' * (HEADER - len(sendRlength))
-                        conn.send(sendRlength)
-                        conn.send(userInformation)
-                        print("information sent on server side")
+                        if userInformation['status'][2] == True:
+                            print("sending information to client")
+                            userInformation = pickle.dumps(userInformation)
+                            msgRlength = len(userInformation)
+                            sendRlength = str(msgRlength).encode('utf-8')
+                            sendRlength += b' ' * (HEADER - len(sendRlength))
+                            conn.send(sendRlength)
+                            conn.send(userInformation)
+                            print("information sent on server side")
+                        else:
+                            print("incorrect login attmpt - not sending information to client")
+                            msgR = 'None'
+                            msgRlength = len(msgR.encode('utf-8'))
+                            sendRlength = str(msgRlength).encode('utf-8')
+                            sendRlength += b' ' * (HEADER - len(sendRlength))
+                            conn.send(sendRlength)
+                            conn.send(msgR.encode('utf-8'))
                 clientRequestUserInformation()
             if msg == 'showBooksForBrowse':
                 def clientShowBooksForBrowse():
+                    print("clientShowBooksForBrowse")
                     bookInformationList = []
 
                     for i in range(len(library.listBookClass)):
@@ -122,7 +158,6 @@ def handleClient(conn, addr):
                     # amount of information in the list
                     utfBookInformationList = pickle.dumps(bookInformationList)
                     msgLength = len(utfBookInformationList)
-                    print(msgLength)
                     while msgLength > 20_000_000:
                         bookInformationList.pop()
                         utfBookInformationList = pickle.dumps(bookInformationList)
@@ -132,9 +167,6 @@ def handleClient(conn, addr):
                     sendLength += b' ' * (HEADER - len(sendLength))
                     conn.send(sendLength)
                     conn.send(utfBookInformationList)
-
-
-
                 clientShowBooksForBrowse()
 
     library.saveInformationLongTerm()
@@ -177,9 +209,8 @@ class Library:
             historyLength = len(bookInformation['historyInformation'][2])
             userID = bookInformation['historyInformation'][2][historyLength]
             historyLength = len(bookInformation['historyInformation'][3])
-            userName = bookInformation['historyInformation'][2][historyLength]
             # retrieve user information
-            userInformation = self.requestUserInformation(userID, userName)
+            userInformation = self.requestUserInformation(userID)
             self.notifyThroughEmail(userInformation['email'], f"To {userInformation['name']},\n\nThis email is sent from"
                                                               f" the {self.name} to let you know that you "
                                                               f"have the book {bookInformation['name']} due today. It is"
@@ -193,9 +224,8 @@ class Library:
             historyLength = len(bookInformation['historyInformation'][2])
             userID = bookInformation['historyInformation'][2][historyLength]
             historyLength = len(bookInformation['historyInformation'][3])
-            userName = bookInformation['historyInformation'][2][historyLength]
             # retrieve user information
-            userInformation = self.requestUserInformation(userID, userName)
+            userInformation = self.requestUserInformation(userID)
             self.notifyThroughEmail(userInformation['email'], f"To {userInformation['name']},\n\nThis email is sent from"
                                                               f" the {self.name} to let you know that you "
                                                               f"have the book {bookInformation['name']} now overdue. It is"
@@ -480,13 +510,19 @@ class Library:
             password = password.encode('utf-8')
         except ValueError:
             self.globalPrint("userID must be a number", self.name, self.name)
+            return False
         for i in range(len(self.listUserClass)):
             if self.listUserClass[i].ID == userID:
                 if bcrypt.checkpw(password, self.listUserClass[i].password):
                     self.globalPrint(f"password correct for {userID}", self.name, self.name)
-                    self.listUserClass[i].signIn = True
+                    userInformation = self.listUserClass[i].userInformation
+                    userInformation['status'][2] = True
+                    print(userInformation)
+                    self.listUserClass[i].updateInformation(userInformation, userID)
+                    return True
                 else:
                     self.globalPrint(f"password incorrect for {userID}", self.name, self.name)
+                    return False
             else:
                 pass
 
@@ -497,7 +533,9 @@ class Library:
             self.globalPrint("userID must be a number", self.name, self.name)
         for i in range(len(self.listUserClass)):
             if self.listUserClass[i] == userID:
-                self.listUserClass[i].signIn = False
+                userInformation = self.listUserClass[i].userInformation
+                userInformation['status'][2] = False
+                self.listUserClass[i].updateInformation(userInformation, userInformation['identification'])
                 self.globalPrint(f"User {userID} has been registered as signed out", self.name, self.name)
             else:
                 pass
@@ -513,7 +551,7 @@ class Library:
                     name = self.listUserClass[i].name
                     del self.listUserClass[i]
                     self.listUserID.remove(ID)
-                    self.globalPrint(f"User {name}-{ID} has been successfully removed from the library")
+                    self.globalPrint(f"User {name}-{ID} has been successfully removed from the library", self.name, self.name)
                     break
                 continue
         else:
@@ -571,12 +609,14 @@ class User:
                                 'listWaitingOnHold': self.listWaitingOnHold,
                                 'booksSignedOut': self.listBooksSignedOut,
                                 'identification': self.ID,
-                                'listOverdueBooks': self.listOverdueBooks}
+                                'listOverdueBooks': self.listOverdueBooks,
+                                'signIn': self.signIn}
 
     def updateInformation(self, information, ID):
         if ID == self.ID:
             self.userInformation = information
             library.globalPrint('information has been updated successfully on user side', self.name, self.ID)
+            print(self.userInformation)
 
     def requestBookInformation(self, bookID):
         # this is to ask the server for book information upon take out of the book.
@@ -645,6 +685,7 @@ try:
     library.globalPrint("files loaded on systemLog side", 1, "systemLog")
 except:
     library.globalPrint("files not found -- continuing anyways", 1, "systemLog")
+
 
 
 library.globalPrint("SERVER IS STARTING...", 1, 'systemLog')
