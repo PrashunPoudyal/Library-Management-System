@@ -38,24 +38,56 @@ SERVER = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER, PORT)
 DISCONNECT_MESSAGE = "!DISCONNECT"
 
+# this is information for the server socket import
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 
+# this is contact information for the library messaging bot. the password is hidden when open sourced
 serverEmail = 'librarysystem@gmail.com'
-serverPassword = 'librarySyst3mB0T'
+serverPassword = 'censored in github, only visible in source code as hash string'
 
+# this here is admin information although proper admin code and authentication has not yet been added.
 adminID = 3030
 adminPassword = '1234'
 adminEmail = 'prashunpoudyal26@gmail.com'
 
+# this function is a thread and is responsible for handling the client
+# in other words it sends and recieves data from and to the client(s)
 
 def handleClient(conn, addr):
+    '''
+    this part of the code is responsible for handling the client.
+
+    when information comes in from the client, it establishes what that means by a series of codes that is set
+    by the server and the client in hard code. These codes contribute to certain functions.
+
+    sometimes, the functions that are requested need to be given parameter so that the function can work. In this
+    case, the server and the client both will understand that more information is coming, so the servers thread waits
+    for a response. Once all the parameters have been satisfied, the function does its part.
+
+    sometimes, the functions need to return information back to the user interface handler. To do this, the information
+    will get returned the same way it came. With both parties understanding to wait for information to be recieved.
+
+    This information cannot have a byte size of more than 99,999,999 bytes. The reason for this is that if it had larger
+    bytes, the header code (which is 64 bytes long) cannot give a proper count. In the event that more than 100 MB of
+    data must be sent, this will be reconfigured by me.
+
+    currently data for book browsing is limited to 20 MB, about 1/5 of the possible. This is temporary and just because
+    I do not want to test this as of now
+
+    I will later put this into a class, called the serverHandler class
+    '''
     library.globalPrint(f"[NEW CONNECTION] {addr} connected", 1, "systemLog")
 
     connected = True
     while connected:
+        # this is a while loop to keep communication going.
+        # this msgLength figures out how many bytes the next message will be. Maximum bytes as of now is
+        # 99,999,999 bytes, or one byte under 100 MB. this can be changed later but for now this is what I have set it
+        # to.
         msgLength = conn.recv(HEADER).decode('utf-8')
         if msgLength:
+            # this is to check what the message actually is
             msgLength = int(msgLength)
             msg = conn.recv(msgLength).decode('utf-8')
             # this is the information decoder - it translates the string code to a given function in
@@ -65,6 +97,7 @@ def handleClient(conn, addr):
                 print("A USER HAS DISCONNECTED")
                 # this comment is so that pycharm will let me collapse the if statement
                 # because if I want to collapse the if statement I need at least 2 lines
+            # these are all the message codes.
             if msg == 'requestLibraryName':
                 def requestLibraryName():
                     print("requestLibraryName")
@@ -171,8 +204,15 @@ def handleClient(conn, addr):
 
     library.saveInformationLongTerm()
 
-
 def start():
+    '''
+    this function is also for handling clients, but it is only to wait for new clients to come in. It waits on the
+    server.accept() function until someone joins the server. Once they have joined the rest of the code goes through,
+    a new thread is made in the handleClient() function, and the start function rests back on the server.accept() to wait
+    for a new user.
+
+    when a user disconnects, it is set to false.
+    '''
     running = True
     server.listen()
     library.globalPrint(f"SERVER IS LISTENING ON {SERVER}", 1, "systemLog")
@@ -182,10 +222,13 @@ def start():
         thread.start()
         library.globalPrint(f"[ACTIVE CONNECTIONS] {threading.activeCount() - 1}", 1, "systemLog")
 
-
 # library class acts as a server class
 class Library:
     def __init__(self, name='new library'):
+        '''
+        all of the information in this __init__ class is stored into a .dat file so that the librarian does not
+        have to re-enter all of the data in every time.
+        '''
         # this constructor class will allow for the library to have certain pieces of information to be stored in itself
         self.name = name
         # these lists are for being able to count to see how many books and how many users there are
@@ -199,10 +242,17 @@ class Library:
         # these are message codes for emails
 
     def notifyAdmin(self):
+        '''
+        this function is for notifying admin when an incorrect login attempt has happened. This is a security function
+        '''
         invalidLoginAttempt = f"Someone has attempted to login as administrator with an incorrect password at {datetime.now()}"
         self.notifyThroughEmail(adminEmail, invalidLoginAttempt)
 
     def notifyServerDue(self, bookInformation, status, userInformation=None):
+        '''
+        this function is used by the server to send emails to users about their book being due, overdue, or any
+        other information they may need
+        '''
         self.globalPrint(f"library.notifyServerDue(bookInformation, status) has been recieved. status = {status}", self.name, self.name)
         if status == 'due today':
             # find how long the list is
@@ -243,6 +293,9 @@ class Library:
                                                               f"\n\n NOTE: THIS MESSAGE WAS SENT BY A BOT - DO NOT REPLY")
 
     def notifyThroughEmail(self, recievingEmail, message):
+        '''
+        server starts up, and it logs in to its own account. It will then send the email
+        '''
         server = smtplib.SMTP('stmp.gmail.com', 587)
         server.starttls()
         server.login(serverEmail, serverPassword)
@@ -250,6 +303,9 @@ class Library:
         server.sendmail(serverEmail, recievingEmail, message)
 
     def loadInformationLongTerm(self):
+        '''
+        this function retrieves information that is stored on the hard drive
+        '''
         self.listUserClass = pickle.load(open("saveUserClass.dat", "rb"))
         self.listBookClass = pickle.load(open("saveBookClass.dat", "rb"))
         self.listUserID = pickle.load(open("saveUserID.dat", "rb"))
@@ -257,6 +313,9 @@ class Library:
         print(f"\n{self.listUserClass}\n {self.listBookClass}\n {self.listUserID}\n {self.listBookID}")
 
     def saveInformationLongTerm(self):
+        '''
+        this function saves information that has been updated by the program
+        '''
 
         userClass = self.listUserClass
         bookClass = self.listBookClass
@@ -332,6 +391,10 @@ class Library:
         print(book.ID)
 
     def requestUserInformation(self, userID):
+        '''
+        this retrieves user information in a neat way to make code look better.
+        it is not really neccessary
+        '''
         try:
             userID = int(userID)
         except ValueError:
@@ -357,6 +420,9 @@ class Library:
             return 'Book Not Found'
 
     def showBooks(self, i):
+        '''
+        send book information of book depending on order of list. It is used for 'for' loops
+        '''
         return self.listBookClass[i].bookInformation
 
     def userTakeoutBook(self, userInformation, bookInformation):
@@ -420,6 +486,7 @@ class Library:
         print(f"{name}-{ID}: {information}")
 
     def putBookOnHold(self, userInformation, bookInformation):
+        # this is for putting book on hold by the user
         bookInformation['listOnHold'].append(userInformation['identification'])
         userInformation['status'][1] = True
         userInformation['listWaitingOnHold'].append(bookInformation['identification'])
@@ -498,6 +565,7 @@ class Library:
                 continue
 
     def updateInformation(self, userInformation, bookInformation):
+        # this updated the information of the user and / or the book
         self.globalPrint("sending information...", self.name, self.name)
         for i in range(len(self.listUserClass)):
             self.listUserClass[i].updateInformation(userInformation, userInformation['identification'])
@@ -505,6 +573,25 @@ class Library:
             self.listBookClass[i].updateInformation(bookInformation, bookInformation['identification'])
 
     def signInUser(self, userID, password):
+        '''
+        this is the sign in function for the program
+        
+        it first makes sure all of the information needed is in the correct type, which is:
+        str for password
+        int for userID
+        
+        I later plan on making it so that you can log in with a username instead of a userID,
+        but I will do that some other day when the UI is already finished.
+        
+        once it does that it makes sure that the UserID is valid, and if it is, the password
+        associated with that userID is also valid.
+        
+        if they are all valid, then the user will allow authentication for information access.
+        
+        a feature will later be added to make sure you cannot pass in too much information at
+        a time without it notifying both the user, the admin, and blocking you out from signing
+        in for a period of time.
+        '''
         try:
             userID = int(userID)
             password = password.encode('utf-8')
