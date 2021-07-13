@@ -10,11 +10,15 @@ UserInterface => makes the information look asthetic for the user using the tkin
 '''
 
 # imports
+# socket is for communicating with server
 import socket
+# tkinter is the GUI components
 from tkinter import *
 from tkinter import messagebox
 from tkinter import ttk
+# partial and functools is so that I can pass through parameters from tkinter functions
 from functools import partial
+# pickle is for pickling information into proper files
 import pickle
 '''
 This file is the file that is on the user side. User Class will still be on library side. It is the userInterface that the
@@ -34,7 +38,7 @@ HEADER = 64
 # port 5050 is the connection port
 PORT = 5050
 # disconnect message
-DISCONNECT_MESSAGE = "!DISCONNECT"
+DISCONNECT_MESSAGE = b"!DISCONNECT"
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -62,33 +66,38 @@ on github as well.
 '''
 class UserInterfaceHandler:
     def __init__(self):
+        # self.name is formality
         self.name = 'userInterfaceHandler'
+        # self.serveraddress is so that the uiHandler can locate and talk to the server
         self.serverAddress = ''
+        # self.IMGpaths is a list of all the img paths so that there is a place to store all of the information
         self.IMGpaths = []
 
     def saveInformationLongTerm(self):
+        # puts self.serverAddress variable into a temporary variable
         serverAddress = self.serverAddress
 
+        # temporary variable gets saved into a serveraddress.dat file
         pickle.dump(serverAddress, open("serveraddress.dat", "wb"))
 
     def loadInformationLongTerm(self):
+        # gets information from the serveraddress.dat file
         serverAddress = pickle.load(open("serveraddress.dat", "rb"))
+        # loads the information from the serveraddress.dat file into the class __init__
         self.serverAddress = serverAddress
 
-    def send(self, msg):
-        message = msg.encode('utf-8')
-        msgLength = len(message)
-        sendLength = str(msgLength).encode('utf-8')
-        sendLength += b' ' * (HEADER - len(sendLength))
-        client.send(sendLength)
-        client.send(message)
-
     def leaveConnection(self, userID):
+        # this function logs out automatically and disconnects from the server safely
+        # this signs out the user automatically and safely so that when the disconnect occurs, the user is not
+        # shown as signed in by accident
         self.serverRequestUserSignOut(userID)
+        # this disconnects the client from the server safely
         self.disconnect()
 
     def serverRequestLibraryName(self):
-        # message for function name
+        # this function gets the name of the library so that the client can display it on the title of the window
+        # for tkinter
+        # this is the message for the function name call
         message = b'requestLibraryName'
         msgLength = len(message)
         sendLength = str(msgLength).encode('utf-8')
@@ -104,9 +113,15 @@ class UserInterfaceHandler:
             return message
 
     def serverRequestAddUser(self, name, email, password):
+        # will be added later when home screen is finished and working
         pass
 
     def serverRequestUserSignIn(self, userID, password):
+        # this asks the server to sign in the user with information.
+        '''
+        MAKE SURE THAT THE PASSWORD IS SENT SECURELY LATER ON IN THE CODE FOR PRODUCTION - IT IS CURRENTLY NOT ENCRYPTED
+        AND IT IS ONLY BEING SEND THROUGH AS A PASSWORD AND THEN CONVERTED INTO HASH BY THE SERVER
+        '''
         # message for function sign in
         message = b'requestSignIn'
         msgLength = len(message)
@@ -136,6 +151,7 @@ class UserInterfaceHandler:
             return confirm
 
     def serverRequestUserSignOut(self, userID):
+        # this asks the server to sign out the user. password is not required to sign out user
         # message for function sign in
         message = b'requestSignOut'
         msgLength = len(message)
@@ -152,6 +168,7 @@ class UserInterfaceHandler:
         client.send(userIDmessage)
 
     def adminRequestDeleteUser(self, userID, admPassword):
+        # this asks the server to delete a certain user
         # message for function sign in
         message = b'requestDeleteUser'
         msgLength = len(message)
@@ -175,6 +192,10 @@ class UserInterfaceHandler:
         client.send(password)
 
     def adminRequestDeleteBook(self, userID, admPassword):
+        # this asks the server to delete a certain book
+        # once a book or a user has been deleted, it is not actually deleted
+        # the status of the book or user is deleted, that way the information can still be retrieved and put back
+        # into use
         # message for function sign in
         message = b'requestDeleteBook'
         msgLength = len(message)
@@ -198,6 +219,7 @@ class UserInterfaceHandler:
         client.send(password)
 
     def serverRequestUserInformation(self, userID):
+        # this asks the server for information on user
         # message for function sign in
         message = b'requestUserInformation'
         msgLength = len(message)
@@ -222,7 +244,8 @@ class UserInterfaceHandler:
             except:
                 return 'fail'
 
-    def serverRequestShowBooks(self):
+    def serverRequestRecommendedBooks(self):
+        # this asks the server for information on books for recommended feed
         bookList = []
         imgPath = []
         # call function on server side
@@ -255,237 +278,247 @@ class UserInterfaceHandler:
                         f.close()
                         imgPath.append(f"temporaryFiles/test_file{i}.jpg")
 
-
-
     def connect(self):
+        # this connects to the server
+        # try statement is to see if it can connect to the server using the serverAddress
         try:
             SERVER = self.serverAddress
             ADDR = (SERVER, PORT)
             client.connect(ADDR)
             return True
         except:
-            serverAddressPage()
-
-    def main(self):
-        print("main has started")
+            # if it cannot connect to the server it sends the user to the server address page, where the user
+            # can add their server address
+            ui.serverAddressPage()
 
     def disconnect(self):
-        self.send(DISCONNECT_MESSAGE)
+        # this is for safely disconnecting from the server
+        # it sends a disconnect message and returns to regular code
+        message = DISCONNECT_MESSAGE
+        msgLength = len(message)
+        sendLength = str(msgLength).encode('utf-8')
+        sendLength += b' ' * (HEADER - len(sendLength))
+        client.send(sendLength)
+        client.send(message)
 
 uiHandler = UserInterfaceHandler()
 
 
-
-def connect():
-    x = uiHandler.connect()
-    return x
-
-def userSettingsPage(username):
-    def back():
-        homePage(username)
-
-    settingsPage = Tk()
-
-def homePage(username):
-
-    def logoutandexit():
-        if messagebox.askokcancel("ARE YOU SURE?", "ARE YOU SURE YOU WANT TO QUIT PROGRAM?"):
-            uiHandler.serverRequestUserSignOut(username)
+class UserInterface:
+    def __init__(self):
+        self.name = 'ui'
+    
+    def connect(self):
+        x = uiHandler.connect()
+        return x
+    
+    def userSettingsPage(self, username):
+        def back():
+            self.homePage(username)
+    
+        settingsPage = Tk()
+    
+    def homePage(self, username):
+    
+        def logoutandexit():
+            if messagebox.askokcancel("ARE YOU SURE?", "ARE YOU SURE YOU WANT TO QUIT PROGRAM?"):
+                uiHandler.serverRequestUserSignOut(username)
+                uiHandler.disconnect()
+                quit()
+    
+        logout = partial(logoutandexit)
+    
+        libraryName = uiHandler.serverRequestLibraryName()
+        userInformation = uiHandler.serverRequestUserInformation(username)
+    
+        bookList = uiHandler.serverRequestRecommendedBooks()
+    
+        homeWindow = Tk()
+        homeWindow.protocol("WM_DELETE_WINDOW", logoutandexit)
+        homeWindow.geometry('700x525')
+        homeWindow.title(f"{libraryName} User Home Page - {username}")
+        homeWindow.resizable(False, False)
+    
+        settingsIMG = PhotoImage(file='Assets/settingsIcon.png')
+        settingsIMG = settingsIMG.subsample(19, 19)
+    
+        logoutIMG = PhotoImage(file='Assets/logoutIcon.png')
+        logoutIMG = logoutIMG.subsample(19, 19)
+    
+        browseIMG = PhotoImage(file='Assets/browseIcon.png')
+        browseIMG = browseIMG.subsample(19, 19)
+    
+        homeIMG = PhotoImage(file='Assets/homeIcon.png')
+        homeIMG = homeIMG.subsample(19, 19)
+    
+        message_frame = LabelFrame(homeWindow, padx=0, pady=0, width=700, height=108, bg='snow').grid(row=0, column=0)
+        recommended_frame = LabelFrame(homeWindow, padx=0, pady=0, width=700, height=70, bg='DodgerBlue4').grid(row=1,
+                                                                                                                column=0)
+        line1_frame = LabelFrame(homeWindow, padx=0, pady=0, width=12, height=403, bg='steel blue').place(relx=0.72,
+                                                                                                          rely=0.335)
+        due_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=60, bg='steel blue').place(relx=0.735,
+                                                                                                        rely=0.335)
+        settingsbtn = ttk.Button(homeWindow, image=settingsIMG).place(relx=0.88, rely=0.01)
+        logoutbtn = ttk.Button(homeWindow, image=logoutIMG, command=logout).place(relx=0.94, rely=0.01)
+        browsebtn = ttk.Button(homeWindow, image=browseIMG).place(relx=0.82, rely=0.01)
+        homebtn = ttk.Button(homeWindow, image=homeIMG).place(relx=0.76, rely=0.01)
+    
+        message = Label(message_frame, width=20, height=1, text=f"{userInformation['name'].upper()}",
+                        font=('Courrier', 27, 'bold'), bg='snow', anchor='nw')
+        message.place(relx=0.01, rely=0.03)
+    
+        recommended = Label(recommended_frame, width=40, text='RECOMMENDED BOOKS', font=('Courrier', 20, 'bold'), fg='snow',
+                            bg='DodgerBlue4', anchor='w')
+        recommended.grid(row=1, column=0)
+    
+        book_due = Label(due_frame, width=10, height=1, text="BOOKS DUE", font=('Courrier', 20, 'bold'), fg='snow',
+                         bg='steel blue', anchor='w')
+        book_due.place(relx=0.74, rely=0.355)
+    
+        homeWindow.mainloop()
+    
+    def loginPage(self):
+        def closeProgram():
             uiHandler.disconnect()
             quit()
-
-    logout = partial(logoutandexit)
-
-    libraryName = uiHandler.serverRequestLibraryName()
-    userInformation = uiHandler.serverRequestUserInformation(username)
-
-    bookList = uiHandler.serverRequestShowBooks()
-
-
-    homeWindow = Tk()
-    homeWindow.protocol("WM_DELETE_WINDOW", logoutandexit)
-    homeWindow.geometry('700x525')
-    homeWindow.title(f"{libraryName} User Home Page - {username}")
-    homeWindow.resizable(False, False)
-
-    settingsIMG = PhotoImage(file='Assets/settingsIcon.png')
-    settingsIMG = settingsIMG.subsample(19, 19)
-
-    logoutIMG = PhotoImage(file='Assets/logoutIcon.png')
-    logoutIMG = logoutIMG.subsample(19, 19)
-
-    browseIMG = PhotoImage(file='Assets/browseIcon.png')
-    browseIMG = browseIMG.subsample(19, 19)
-
-    homeIMG = PhotoImage(file='Assets/homeIcon.png')
-    homeIMG = homeIMG.subsample(19, 19)
-
-    message_frame = LabelFrame(homeWindow, padx=0, pady=0, width=700, height=108, bg='snow').grid(row=0, column=0)
-    recommended_frame = LabelFrame(homeWindow, padx=0, pady=0, width=700, height=70, bg='DodgerBlue4').grid(row=1,
-                                                                                                            column=0)
-    line1_frame = LabelFrame(homeWindow, padx=0, pady=0, width=12, height=403, bg='steel blue').place(relx=0.72,
-                                                                                                      rely=0.335)
-    due_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=60, bg='steel blue').place(relx=0.735,
-                                                                                                    rely=0.335)
-    settingsbtn = ttk.Button(homeWindow, image=settingsIMG).place(relx=0.88, rely=0.01)
-    logoutbtn = ttk.Button(homeWindow, image=logoutIMG, command=logout).place(relx=0.94, rely=0.01)
-    browsebtn = ttk.Button(homeWindow, image=browseIMG).place(relx=0.82, rely=0.01)
-    homebtn = ttk.Button(homeWindow, image=homeIMG).place(relx=0.76, rely=0.01)
-
-    message = Label(message_frame, width=20, height=1, text=f"{userInformation['name'].upper()}",
-                    font=('Courrier', 27, 'bold'), bg='snow', anchor='nw')
-    message.place(relx=0.01, rely=0.03)
-
-    recommended = Label(recommended_frame, width=40, text='RECOMMENDED BOOKS', font=('Courrier', 20, 'bold'), fg='snow',
-                        bg='DodgerBlue4', anchor='w')
-    recommended.grid(row=1, column=0)
-
-    book_due = Label(due_frame, width=10, height=1, text="BOOKS DUE", font=('Courrier', 20, 'bold'), fg='snow',
-                     bg='steel blue', anchor='w')
-    book_due.place(relx=0.74, rely=0.355)
-
-    homeWindow.mainloop()
-
-def loginPage():
-    def closeProgram():
-        uiHandler.disconnect()
-        quit()
-
-    def validateLogin(username, password):
-        print("validating login...")
-        confirm = uiHandler.serverRequestUserSignIn(username.get(), password.get())
-        if confirm == 'True':
-            print("USER SIGNED IN")
-            tkWindow.destroy()
-            homePage(username.get())
-        else:
-            messagebox.showinfo("ERROR", "INCORRECT USERID OR PASSWORD - please try again")
-
-    def changeConnection():
-        serverAddressPage()
-
-    def registrationPage():
-        tkWindow.destroy()
-        registerPage()
-
-    #window
-    libraryName = uiHandler.serverRequestLibraryName()
-
-    tkWindow = Tk()
-    tkWindow.resizable(False, False)
-    tkWindow.protocol("WM_DELETE_WINDOW", closeProgram)
-    tkWindow.geometry('400x150')
-    tkWindow.title(f"{libraryName} Login Page")
-
-    #username label and text entry box
-    usernameLabel = Label(tkWindow, text="UserID").grid(row=0, column=0)
-    username = StringVar()
-    usernameEntry = Entry(tkWindow, textvariable=username).grid(row=0, column=1)
-
-    #password label and password entry box
-    passwordLabel = Label(tkWindow,text="Password").grid(row=1, column=0)
-    password = StringVar()
-    passwordEntry = Entry(tkWindow, textvariable=password, show='*').grid(row=1, column=1)
-
-    validateLogin = partial(validateLogin, username, password)
-
-    #login button
-    loginButton = Button(tkWindow, text="Login", command=validateLogin).grid(row=4, column=0)
-
-    # make new account button
-    registerButton = Button(tkWindow, text='make new account', command=registrationPage).place(relx=0.71, rely=0.8)
-
-    # change server connection button
-    serverConnectionButton = Button(tkWindow, text='change server connection', command=changeConnection).place(relx=0.63, rely=0.01)
-
-    tkWindow.mainloop()
-
-def serverAddressPage():
-    tkWindow = Tk()
-    tkWindow.resizable(False, False)
-    tkWindow.geometry('400x150')
-    tkWindow.title("Change Server Address")
-
-    def changeAddress(address):
-        try:
-            uiHandler.serverAddress = address.get()
-            uiHandler.saveInformationLongTerm()
-            connect()
-            tkWindow.destroy()
-            loginPage()
-        except ValueError:
-            print("UNABLE - SOMETHING WENT WRONG")
-
-
-    serverAddressLabel = Label(tkWindow, text="Sever Address: ").grid(row=0, column=0)
-    serverAddress = StringVar()
-    serverAddressEntry = Entry(tkWindow, textvariable=serverAddress).grid(row=0, column=1)
-
-    changeServerAddress = partial(changeAddress, serverAddress)
-
-    loginButton = Button(tkWindow, text="Save Changes", command=changeServerAddress).grid(row=4, column=0)
-
-    tkWindow.mainloop()
-
-def registerPage():
-
-    def registerUser(name, email, password, password2):
-        name = name.get()
-        email = email.get()
-        password = password.get()
-        password2 = password2.get()
-        if password != None and password2 != None and name != None and email != None:
-            if password == password2:
-                uiHandler.serverRequestAddUser(name, email, password)
+    
+        def validateLogin(username, password):
+            print("validating login...")
+            confirm = uiHandler.serverRequestUserSignIn(username.get(), password.get())
+            if confirm == 'True':
+                print("USER SIGNED IN")
+                tkWindow.destroy()
+                self.homePage(username.get())
             else:
-                messagebox.showinfo("ERROR", "your password was not entered and re-entered correctly - please try again")
-        else:
-            messagebox.showinfo("ERROR", "you cannot leave textbox empty")
+                messagebox.showinfo("ERROR", "INCORRECT USERID OR PASSWORD - please try again")
+    
+        def changeConnection():
+            self.serverAddressPage()
+    
+        def registrationPage():
+            tkWindow.destroy()
+            self.registerPage()
+    
+        #window
+        libraryName = uiHandler.serverRequestLibraryName()
+    
+        tkWindow = Tk()
+        tkWindow.resizable(False, False)
+        tkWindow.protocol("WM_DELETE_WINDOW", closeProgram)
+        tkWindow.geometry('400x150')
+        tkWindow.title(f"{libraryName} Login Page")
+    
+        #username label and text entry box
+        usernameLabel = Label(tkWindow, text="UserID").grid(row=0, column=0)
+        username = StringVar()
+        usernameEntry = Entry(tkWindow, textvariable=username).grid(row=0, column=1)
+    
+        #password label and password entry box
+        passwordLabel = Label(tkWindow,text="Password").grid(row=1, column=0)
+        password = StringVar()
+        passwordEntry = Entry(tkWindow, textvariable=password, show='*').grid(row=1, column=1)
+    
+        validateLogin = partial(validateLogin, username, password)
+    
+        #login button
+        loginButton = Button(tkWindow, text="Login", command=validateLogin).grid(row=4, column=0)
+    
+        # make new account button
+        registerButton = Button(tkWindow, text='make new account', command=registrationPage).place(relx=0.71, rely=0.8)
+    
+        # change server connection button
+        serverConnectionButton = Button(tkWindow, text='change server connection', command=changeConnection).place(relx=0.63, rely=0.01)
+    
+        tkWindow.mainloop()
+    
+    def serverAddressPage(self):
+        tkWindow = Tk()
+        tkWindow.resizable(False, False)
+        tkWindow.geometry('400x150')
+        tkWindow.title("Change Server Address")
+    
+        def changeAddress(address):
+            try:
+                uiHandler.serverAddress = address.get()
+                uiHandler.saveInformationLongTerm()
+                self.connect()
+                tkWindow.destroy()
+                self.loginPage()
+            except ValueError:
+                print("UNABLE - SOMETHING WENT WRONG")
+    
+    
+        serverAddressLabel = Label(tkWindow, text="Sever Address: ").grid(row=0, column=0)
+        serverAddress = StringVar()
+        serverAddressEntry = Entry(tkWindow, textvariable=serverAddress).grid(row=0, column=1)
+    
+        changeServerAddress = partial(changeAddress, serverAddress)
+    
+        loginButton = Button(tkWindow, text="Save Changes", command=changeServerAddress).grid(row=4, column=0)
+    
+        tkWindow.mainloop()
+    
+    def registerPage(self):
+    
+        def registerUser(name, email, password, password2):
+            name = name.get()
+            email = email.get()
+            password = password.get()
+            password2 = password2.get()
+            if password != None and password2 != None and name != None and email != None:
+                if password == password2:
+                    uiHandler.serverRequestAddUser(name, email, password)
+                else:
+                    messagebox.showinfo("ERROR", "your password was not entered and re-entered correctly - please try again")
+            else:
+                messagebox.showinfo("ERROR", "you cannot leave textbox empty")
+    
+    
+        homeWindow = Tk()
+        homeWindow.geometry('400x200')
+        homeWindow.title("TEST USER INTERFACE FOR HOME PAGE")
+        homeWindow.resizable(False, False)
+    
+        main_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=50).grid(row=0, column=0)
+        main_message = Label(main_frame, text="REGISTER NEW USER", font=('Courrier', 10, 'bold'), fg='black',
+                             anchor='center')
+        main_message.grid(row=0, column=0)
+        second_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=50).grid(row=0, column=1)
+        second_message = Label(main_frame, text="ENTER INFORMATION HERE", font=('Courrier', 10, 'bold'), fg='black',
+                               anchor='center')
+        second_message.grid(row=0, column=1)
+        # name, email password
+        nameLabel = Label(homeWindow, text="Enter Full Name:").grid(row=1, column=0)
+        emailLabel = Label(homeWindow, text="Enter Email (this will be verified):").grid(row=2, column=0)
+        passwordLabel = Label(homeWindow, text="Enter your Password:").grid(row=3, column=0)
+        confirmpasswordLabel = Label(homeWindow, text="Re-Enter Your Password:").grid(row=4, column=0)
+    
+        fullnameEntry = Entry(homeWindow, textvariable='').grid(row=1, column=1)
+        name = StringVar()
+        e_mail__Entry = Entry(homeWindow, textvariable='').grid(row=2, column=1)
+        email = StringVar()
+        passwordEntry = Entry(homeWindow, textvariable='', show='*').grid(row=3, column=1)
+        password = StringVar()
+        passwrdEntry2 = Entry(homeWindow, textvariable='', show='*').grid(row=4, column=1)
+        password2 = StringVar()
+    
+        register = partial(registerUser, name, email, password, password2)
+    
+        submit_button = Button(homeWindow, text='SUBMIT', command=register).place(relx=0.425, rely=0.8)
+    
+        homeWindow.mainloop()
 
-
-    homeWindow = Tk()
-    homeWindow.geometry('400x200')
-    homeWindow.title("TEST USER INTERFACE FOR HOME PAGE")
-    homeWindow.resizable(False, False)
-
-    main_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=50).grid(row=0, column=0)
-    main_message = Label(main_frame, text="REGISTER NEW USER", font=('Courrier', 10, 'bold'), fg='black',
-                         anchor='center')
-    main_message.grid(row=0, column=0)
-    second_frame = LabelFrame(homeWindow, padx=0, pady=0, width=200, height=50).grid(row=0, column=1)
-    second_message = Label(main_frame, text="ENTER INFORMATION HERE", font=('Courrier', 10, 'bold'), fg='black',
-                           anchor='center')
-    second_message.grid(row=0, column=1)
-    # name, email password
-    nameLabel = Label(homeWindow, text="Enter Full Name:").grid(row=1, column=0)
-    emailLabel = Label(homeWindow, text="Enter Email (this will be verified):").grid(row=2, column=0)
-    passwordLabel = Label(homeWindow, text="Enter your Password:").grid(row=3, column=0)
-    confirmpasswordLabel = Label(homeWindow, text="Re-Enter Your Password:").grid(row=4, column=0)
-
-    fullnameEntry = Entry(homeWindow, textvariable='').grid(row=1, column=1)
-    name = StringVar()
-    e_mail__Entry = Entry(homeWindow, textvariable='').grid(row=2, column=1)
-    email = StringVar()
-    passwordEntry = Entry(homeWindow, textvariable='', show='*').grid(row=3, column=1)
-    password = StringVar()
-    passwrdEntry2 = Entry(homeWindow, textvariable='', show='*').grid(row=4, column=1)
-    password2 = StringVar()
-
-    register = partial(registerUser, name, email, password, password2)
-
-    submit_button = Button(homeWindow, text='SUBMIT', command=register).place(relx=0.425, rely=0.8)
-
-    homeWindow.mainloop()
+ui = UserInterface()
 
 try:
     uiHandler.loadInformationLongTerm()
 except:
-    serverAddressPage()
+    ui.serverAddressPage()
 
 try:
-    x = connect()
+    x = ui.connect()
     if x == True:
-        loginPage()
+        ui.loginPage()
 except:
     pass
 
