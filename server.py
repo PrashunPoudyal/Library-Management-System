@@ -112,23 +112,22 @@ def handleClient(conn, addr):
             if msg == 'requestSignIn':
                 def clientRequestSignIn():
                     print("clientRequestSignIn")
-                    userID = None
                     msgLength = conn.recv(HEADER).decode('utf-8')
                     if msgLength:
                         msgLength = int(msgLength)
                         userID = conn.recv(msgLength).decode('utf-8')
-                    msgLength = conn.recv(HEADER).decode('utf-8')
-                    if msgLength:
-                        msgLength = int(msgLength)
-                        password = conn.recv(msgLength).decode('utf-8')
-                        signedIn = library.signInUser(userID, password)
-                        # let UI know that sign in has been confirmed or rejected
-                        confirm = str(signedIn).encode('utf-8')
-                        msgLength = len(confirm)
-                        sendLength = str(msgLength).encode('utf-8')
-                        sendLength += b' ' * (HEADER - len(sendLength))
-                        conn.send(sendLength)
-                        conn.send(confirm)
+                        msgLength = conn.recv(HEADER).decode('utf-8')
+                        if msgLength:
+                            msgLength = int(msgLength)
+                            password = conn.recv(msgLength).decode('utf-8')
+                            signedIn = library.signInUser(userID, password)
+                            # let UI know that sign in has been confirmed or rejected
+                            confirm = str(signedIn).encode('utf-8')
+                            msgLength = len(confirm)
+                            sendLength = str(msgLength).encode('utf-8')
+                            sendLength += b' ' * (HEADER - len(sendLength))
+                            conn.send(sendLength)
+                            conn.send(confirm)
 
                 clientRequestSignIn()
             if msg == 'requestSignOut':
@@ -169,6 +168,7 @@ def handleClient(conn, addr):
                             sendRlength = str(msgRlength).encode('utf-8')
                             sendRlength += b' ' * (HEADER - len(sendRlength))
                             conn.send(sendRlength)
+                            print(f"{sendRlength} \n {userInformation}")
                             conn.send(userInformation)
                             print("information sent on server side")
                         else:
@@ -182,24 +182,46 @@ def handleClient(conn, addr):
                 clientRequestUserInformation()
             if msg == 'showBooksForBrowse':
                 def clientShowBooksForBrowse():
-                    print("clientShowBooksForBrowse")
-                    bookInformationList = []
-
-                    for i in range(len(library.listBookClass)):
-                        bookInformationList.append(library.listBookClass[i].bookInformation)
-
-                    # amount of information in the list
-                    utfBookInformationList = pickle.dumps(bookInformationList)
-                    msgLength = len(utfBookInformationList)
-                    while msgLength > 20_000_000:
-                        bookInformationList.pop()
-                        utfBookInformationList = pickle.dumps(bookInformationList)
-                        msgLength = len(utfBookInformationList)
-
+                    books = len(library.listBookClass)
+                    msgLength = books
                     sendLength = str(msgLength).encode('utf-8')
                     sendLength += b' ' * (HEADER - len(sendLength))
                     conn.send(sendLength)
-                    conn.send(utfBookInformationList)
+                    books = str(books).encode('utf-8')
+                    conn.send(books)
+
+                    for i in range(len(library.listBookClass)):
+                        # send the amount of books about to be sent so that
+                        # the client can know for its for loop
+                        # first find information on the book
+                        bookInformation = library.listBookClass[i].requestBookInformation()
+                        print(bookInformation)
+                        # second find the path of the image and look for that image
+                        imgPath = library.listBookClass[i].imgPath
+                        # pickle the image
+                        imgFile = open(imgPath, "rb")
+                        l = imgFile.read()
+                        # send msgLength
+                        bookInformation = pickle.dumps(bookInformation)
+                        msgLength = len(bookInformation)
+                        print(msgLength)
+                        sendLength = str(msgLength).encode('utf-8')
+                        sendLength += b' ' * (HEADER - len(sendLength))
+                        print(sendLength)
+                        conn.send(sendLength)
+                        print(bookInformation)
+                        conn.send(bookInformation)
+
+                        imgLength = len(l)
+                        print(imgLength)
+                        sendImgLength = str(imgLength).encode('utf-8')
+                        sendImgLength += b' ' * (HEADER - len(sendImgLength))
+                        print(sendImgLength)
+                        conn.send(sendImgLength)
+                        print(l)
+                        conn.send(l)
+                        print("information sent on server side")
+
                 clientShowBooksForBrowse()
 
     library.saveInformationLongTerm()
@@ -306,11 +328,27 @@ class Library:
         '''
         this function retrieves information that is stored on the hard drive
         '''
-        self.listUserClass = pickle.load(open("saveUserClass.dat", "rb"))
-        self.listBookClass = pickle.load(open("saveBookClass.dat", "rb"))
-        self.listUserID = pickle.load(open("saveUserID.dat", "rb"))
-        self.listBookID = pickle.load(open("saveBookID.dat", "rb"))
-        print(f"\n{self.listUserClass}\n {self.listBookClass}\n {self.listUserID}\n {self.listBookID}")
+        try:
+            self.listUserClass = pickle.load(open("serverData/saveUserClass.dat", "rb"))
+        except Exception:
+            self.globalPrint("ERROR: COULD NOT LOAD USER CLASS FILE", self.name, self.name)
+        try:
+            self.listBookClass = pickle.load(open("serverData/saveBookClass.dat", "rb"))
+        except Exception:
+            self.globalPrint("ERROR: COULD NOT LOAD USER LIST FILE", self.name, self.name)
+
+        try:
+            self.listUserID = pickle.load(open("serverData/saveUserID.dat", "rb"))
+        except Exception:
+            self.globalPrint("ERROR: COULD NOT LOAD BOOK CLASS FILE", self.name, self.name)
+
+        try:
+            self.listBookID = pickle.load(open("serverData/saveBookID.dat", "rb"))
+        except Exception:
+            self.globalPrint("ERROR: COULD NOT LOAD BOOK LIST FILE", self.name, self.name)
+
+        print(f"{self.listUserClass}\n{self.listUserID}\n{self.listBookClass}\n{self.listBookID}")
+
 
     def saveInformationLongTerm(self):
         '''
@@ -325,10 +363,10 @@ class Library:
 
         self.globalPrint("Save Information Request Recieved", self.name, self.name)
 
-        pickle.dump(userClass, open("saveUserClass.dat", "wb"))
-        pickle.dump(bookClass, open("saveBookClass.dat", "wb"))
-        pickle.dump(userID, open("saveUserID.dat", "wb"))
-        pickle.dump(bookID, open("saveBookID.dat", "wb"))
+        pickle.dump(userClass, open("serverData/saveUserClass.dat", "wb"))
+        pickle.dump(bookClass, open("serverData/saveBookClass.dat", "wb"))
+        pickle.dump(userID, open("serverData/saveUserID.dat", "wb"))
+        pickle.dump(bookID, open("serverData/saveBookID.dat", "wb"))
 
         self.globalPrint("all Information has been saved to disk", self.name, self.name)
 
@@ -385,8 +423,9 @@ class Library:
                 break
             else:
                 category.append(word)
+        imgPath = input("Enter Image: ")
 
-        book = Book(name, author, booknum, category)
+        book = Book(name, author, booknum, category, f"Assets/{imgPath}")
         self.listBookClass.append(book)
         print(book.ID)
 
@@ -575,19 +614,19 @@ class Library:
     def signInUser(self, userID, password):
         '''
         this is the sign in function for the program
-        
+
         it first makes sure all of the information needed is in the correct type, which is:
         str for password
         int for userID
-        
+
         I later plan on making it so that you can log in with a username instead of a userID,
         but I will do that some other day when the UI is already finished.
-        
+
         once it does that it makes sure that the UserID is valid, and if it is, the password
         associated with that userID is also valid.
-        
+
         if they are all valid, then the user will allow authentication for information access.
-        
+
         a feature will later be added to make sure you cannot pass in too much information at
         a time without it notifying both the user, the admin, and blocking you out from signing
         in for a period of time.
@@ -665,6 +704,16 @@ class Library:
 library = Library('test library')
 
 
+# class for administrator
+
+class Admin:
+    def __init__(self, email, name, password):
+        print("new admin added")
+        self.email = email
+        self.name = name
+        self.password = password
+        self.signIN = False
+
 # class for User
 class User:
     def __init__(self, name, email, password):
@@ -722,7 +771,7 @@ class User:
 
 # class for Book
 class Book:
-    def __init__(self, name, author, booknum, category):
+    def __init__(self, name, author, booknum, category, imagePath):
         # init function for book
         print("new book has been created")
         self.name = name
@@ -731,6 +780,7 @@ class Book:
         self.category = category
         self.available = True
         self.onHold = False
+        self.imgPath = imagePath
         self.listOnHold = []
         self.historyStatus = []
         self.historyUser = []
@@ -767,9 +817,15 @@ class Book:
             library.globalPrint(f"THIS BOOK IS OVERDUE BY {self.historyTimeReturn[timeReturn] - date.today()}", self.ID, self.name)
             library.notifyServerDue(self.bookInformation, 'overdue')
 
+    def requestBookInformation(self):
+        return self.bookInformation
+
 try:
     library.loadInformationLongTerm()
-    library.globalPrint("files loaded on systemLog side", 1, "systemLog")
+    if library.listUserClass and library.listBookClass and library.listUserID and library.listBookID:
+        library.globalPrint("files loaded on systemLog side", 1, "systemLog")
+    else:
+        library.globalPrint("could not load all files", 1, "systemLog")
 except:
     library.globalPrint("files not found -- continuing anyways", 1, "systemLog")
 
@@ -778,6 +834,7 @@ except:
 library.globalPrint("SERVER IS STARTING...", 1, 'systemLog')
 
 start()
+
 
 
 # this code must be at end of file no matter what, it is server saving all information before program closes
