@@ -182,45 +182,36 @@ def handleClient(conn, addr):
                 clientRequestUserInformation()
             if msg == 'showBooksForBrowse':
                 def clientShowBooksForBrowse():
+                    print('clientShowBooksForBrowse')
+                    # tell client the amount of books that will be sent
                     books = len(library.listBookClass)
-                    msgLength = books
+                    books = str(books).encode('utf-8')
+                    msgLength = len(books)
                     sendLength = str(msgLength).encode('utf-8')
                     sendLength += b' ' * (HEADER - len(sendLength))
                     conn.send(sendLength)
-                    books = str(books).encode('utf-8')
                     conn.send(books)
 
+                    # retrieve information on book
                     for i in range(len(library.listBookClass)):
-                        # send the amount of books about to be sent so that
-                        # the client can know for its for loop
-                        # first find information on the book
-                        bookInformation = library.listBookClass[i].requestBookInformation()
-                        print(bookInformation)
-                        # second find the path of the image and look for that image
-                        imgPath = library.listBookClass[i].imgPath
-                        # pickle the image
-                        imgFile = open(imgPath, "rb")
-                        l = imgFile.read()
-                        # send msgLength
+                        # send bookInformation
+                        bookInformation = library.listBookClass[i].bookInformation
                         bookInformation = pickle.dumps(bookInformation)
                         msgLength = len(bookInformation)
-                        print(msgLength)
                         sendLength = str(msgLength).encode('utf-8')
                         sendLength += b' ' * (HEADER - len(sendLength))
-                        print(sendLength)
                         conn.send(sendLength)
-                        print(bookInformation)
                         conn.send(bookInformation)
-
-                        imgLength = len(l)
-                        print(imgLength)
-                        sendImgLength = str(imgLength).encode('utf-8')
-                        sendImgLength += b' ' * (HEADER - len(sendImgLength))
-                        print(sendImgLength)
-                        conn.send(sendImgLength)
-                        print(l)
-                        conn.send(l)
-                        print("information sent on server side")
+                        # retrieve image path
+                        imgPath = library.listBookClass[i].imgPath
+                        f = open(imgPath, "rb")
+                        img = f.read()
+                        imgLength = len(img)
+                        sendimgLength = str(imgLength).encode('utf-8')
+                        sendimgLength += b' ' * (HEADER - len(sendimgLength))
+                        conn.send(sendimgLength)
+                        conn.send(img)
+                        f.close()
 
                 clientShowBooksForBrowse()
 
