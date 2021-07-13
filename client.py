@@ -223,25 +223,24 @@ class UserInterfaceHandler:
                 return 'fail'
 
     def serverRequestShowBooks(self):
-        try:
-            bookList = []
-            imgPathList = []
-            message = b'showBooksForBrowse'
-            msgLength = len(message)
-            sendLength = str(msgLength).encode('utf-8')
-            sendLength += b' ' * (HEADER - len(sendLength))
-            client.send(sendLength)
-            client.send(message)
-            msgLength = client.recv(HEADER).decode('utf-8')
-            if msgLength:
-                msgLength = int(msgLength)
-                books = client.recv(msgLength)
-
+        bookList = []
+        imgPath = []
+        # call function on server side
+        message = b'showBooksForBrowse'
+        msgLength = len(message)
+        sendLength = str(msgLength).encode('utf-8')
+        sendLength += b' ' * (HEADER - len(sendLength))
+        client.send(sendLength)
+        client.send(message)
+        # get amount of books to retrieve
+        msg = client.recv(HEADER).decode('utf-8')
+        if msg:
+            msg = int(msg)
+            books = client.recv(msg).decode('utf-8')
+            if books:
                 books = int(books)
-
                 for i in range(books):
                     msgLength = client.recv(HEADER).decode('utf-8')
-                    f = open(f"temporaryFiles/testfile{i}.jpg", "wb")
                     if msgLength:
                         msgLength = int(msgLength)
                         bookInformation = client.recv(msgLength)
@@ -251,16 +250,12 @@ class UserInterfaceHandler:
                     if imgLength:
                         imgLength = int(imgLength)
                         img = client.recv(imgLength)
+                        f = open(f"temporaryFiles/test_file{i}.jpg", "wb")
                         f.write(img)
-                        self.IMGpaths.append(f"temporaryFiles/testfile{i}.jpg")
+                        f.close()
+                        imgPath.append(f"temporaryFiles/test_file{i}.jpg")
 
-                    f.close()
 
-                    print(bookList)
-
-        except:
-            print("failed to send - re-trying")
-            self.serverRequestShowBooks()
 
     def connect(self):
         try:
@@ -304,7 +299,7 @@ def homePage(username):
     libraryName = uiHandler.serverRequestLibraryName()
     userInformation = uiHandler.serverRequestUserInformation(username)
 
-    uiHandler.serverRequestShowBooks()
+    bookList = uiHandler.serverRequestShowBooks()
 
 
     homeWindow = Tk()
